@@ -7,3 +7,4 @@ pyarrow
 s3fs
 botocore[crt]
 gdown
+snowflake-connector-python

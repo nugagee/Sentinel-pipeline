@@ -131,6 +131,20 @@ def clean(df, cfg):
     return df
 
 
+def downcast_timestamps(table):
+    """Cast nanosecond timestamps to microseconds.
+
+    Snowflake's Parquet COPY misreads INT64 nanosecond timestamps (loads them at
+    the wrong scale -> out-of-range/"invalid" dates). Microsecond precision loads
+    correctly and is plenty for these timestamps.
+    """
+    for i, field in enumerate(table.schema):
+        if pa.types.is_timestamp(field.type) and field.type.unit == "ns":
+            new_type = pa.timestamp("us", tz=field.type.tz)
+            table = table.set_column(i, field.name, table.column(i).cast(new_type))
+    return table
+
+
 def to_arrow(df, cfg):
     """Build a pyarrow Table with enforced money (decimal128(18,2)) types."""
     table = pa.Table.from_pandas(df, preserve_index=False)
@@ -138,7 +152,7 @@ def to_arrow(df, cfg):
         if col in table.schema.names:
             idx = table.schema.get_field_index(col)
             table = table.set_column(idx, col, table.column(col).cast(MONEY_TYPE))
-    return table
+    return downcast_timestamps(table)
 
 
 def write_processed(table, out_name):
